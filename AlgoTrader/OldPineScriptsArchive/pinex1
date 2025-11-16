@@ -1,0 +1,54 @@
+//@version=5
+strategy(title="UT Bot Alerts Strategy", overlay=true)
+
+// Inputs
+a = input.int(1, title="Key Value. 'This changes the sensitivity'")
+c = input.int(10, title="ATR Period")
+bbLength = input.int(30, title="Bollinger Bands Length")
+bbStdDev = input.float(3, title="Bollinger Bands Standard Deviation")
+
+xATR = ta.atr(c)
+nLoss = a * xATR
+
+
+src = close
+
+var float xATRTrailingStop = 0.0
+xATRTrailingStop := if src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0)
+    math.max(nz(xATRTrailingStop[1]), src - nLoss)
+else if src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0)
+    math.min(nz(xATRTrailingStop[1]), src + nLoss)
+else
+    if src > nz(xATRTrailingStop[1], 0) 
+        src - nLoss 
+    else 
+        src + nLoss
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossunder(ema, xATRTrailingStop)
+
+// Bollinger Bands
+[bbUpper, bbBasis, bbLower] = ta.bb(src, bbLength, bbStdDev)
+
+buy  = src > xATRTrailingStop and above 
+sell = src < xATRTrailingStop and below
+
+buyCondition = buy and src > bbLower and src < bbBasis
+sellCondition = sell and src < bbUpper and src > bbBasis
+
+// Strategy execution
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.close("Buy")
+
+// Optional: Plotting to visualize the entry and exit points
+plotshape(series=buy, title="Buy Signal", location=location.belowbar, color=color.green, size=size.small, style=shape.triangleup)
+plotshape(series=sell, title="Sell Signal", location=location.abovebar, color=color.red, size=size.small, style=shape.triangledown)
+
+// Plotting Bollinger Bands
+plot(bbUpper, "Upper Band", color=color.red)
+plot(bbBasis, "Basis (Middle Band)", color=color.blue)
+plot(bbLower, "Lower Band", color=color.red)

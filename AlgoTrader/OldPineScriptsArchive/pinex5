@@ -1,0 +1,44 @@
+//@version=5
+strategy("Higher High Lower Low Strategy", overlay=true, max_lines_count=500)
+
+// Inputs
+lb = input.int(5, title="Left Bars", minval=1)
+rb = input.int(5, title="Right Bars", minval=1)
+
+ph = ta.pivothigh(lb, rb)
+pl = ta.pivotlow(lb, rb)
+
+// Declare variables at the top of your script
+var float a_1 = na
+var float b_1 = na
+var float c_1 = na
+var float d_1 = na
+var float e_1 = na
+
+hl = ph ? 1 : pl ? -1 : na
+zz = ph ? ph : pl ? pl : na
+zz := pl and hl == -1 and ta.valuewhen(hl, hl, 1) == -1 and pl > ta.valuewhen(zz, zz, 1) ? na : zz
+zz := ph and hl == 1 and ta.valuewhen(hl, hl, 1) == 1 and ph < ta.valuewhen(zz, zz, 1) ? na : zz
+
+hl := hl == -1 and ta.valuewhen(hl, hl, 1) == 1 and zz > ta.valuewhen(zz, zz, 1) ? na : hl
+hl := hl == 1 and ta.valuewhen(hl, hl, 1) == -1 and zz < ta.valuewhen(zz, zz, 1) ? na : hl
+zz := na(hl) ? na : zz
+
+// Correcting the usage of valuewhen with the ta. prefix
+if not na(hl)
+    a_1 := zz
+    b_1 := ta.valuewhen(zz, zz, 1)
+    c_1 := ta.valuewhen(zz, zz, 2)
+    d_1 := ta.valuewhen(zz, zz, 3)
+    e_1 := ta.valuewhen(zz, zz, 4)
+
+_hh = zz and (a_1 > b_1 and a_1 > c_1 and c_1 > b_1 and c_1 > d_1)
+_ll = zz and (a_1 < b_1 and a_1 < c_1 and c_1 < b_1 and c_1 < d_1)
+
+
+
+plotshape(_hh, text="HH", title="Higher High", style=shape.labeldown, color=color.lime, textcolor=color.black, location=location.abovebar, offset = -rb)
+plotshape(_ll, text="LL", title="Lower Low", style=shape.labelup, color=color.red, textcolor=color.white, location=location.belowbar, offset = -rb)
+
+//label.new(bar_index, low, "Buy", color=color.green)
+

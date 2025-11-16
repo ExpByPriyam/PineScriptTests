@@ -1,0 +1,83 @@
+//@version=5
+strategy("Higher High Lower Low Strategy", overlay=true, max_lines_count=500)
+
+// Inputs
+lb = input.int(5, title="Left Bars", minval=1)
+rb = input.int(5, title="Right Bars", minval=1)
+showsupres = input.bool(true, title="Support/Resistance", inline="srcol")
+supcol = input.color(color.new(color.lime, 0), title="", inline="srcol")
+rescol = input.color(color.new(color.red, 0), title="", inline="srcol")
+srlinestyle = input.string("dotted", title="Line Style/Width", options=["solid", "dashed", "dotted"], inline="style")
+srlinewidth = input.int(3, title="", minval=1, maxval=5, inline="style")
+changebarcol = input.bool(true, title="Change Bar Color", inline="bcol")
+bcolup = input.color(color.new(color.blue, 0), title="", inline="bcol")
+bcoldn = input.color(color.new(color.black, 0), title="", inline="bcol")
+
+ph = ta.pivothigh(lb, rb)
+pl = ta.pivotlow(lb, rb)
+
+// Declare variables at the top of your script
+var float a = na
+var float b = na
+var float c = na
+var float d = na
+var float e = na
+
+hl = ph ? 1 : pl ? -1 : na
+zz = ph ? ph : pl ? pl : na
+zz := pl and hl == -1 and ta.valuewhen(hl, hl, 1) == -1 and pl > ta.valuewhen(zz, zz, 1) ? na : zz
+zz := ph and hl == 1 and ta.valuewhen(hl, hl, 1) == 1 and ph < ta.valuewhen(zz, zz, 1) ? na : zz
+
+hl := hl == -1 and ta.valuewhen(hl, hl, 1) == 1 and zz > ta.valuewhen(zz, zz, 1) ? na : hl
+hl := hl == 1 and ta.valuewhen(hl, hl, 1) == -1 and zz < ta.valuewhen(zz, zz, 1) ? na : hl
+zz := na(hl) ? na : zz
+
+// Correcting the usage of valuewhen with the ta. prefix
+if not na(hl)
+    a := zz
+    b := ta.valuewhen(zz, zz, 1)
+    c := ta.valuewhen(zz, zz, 2)
+    d := ta.valuewhen(zz, zz, 3)
+    e := ta.valuewhen(zz, zz, 4)
+
+_hh = zz and (a > b and a > c and c > b and c > d)
+_ll = zz and (a < b and a < c and c < b and c < d)
+_hl = zz and ((a >= c and (b > c and b > d and d > c and d > e)) or (a < b and a > c and b < d))
+_lh = zz and ((a <= c and (b < c and b < d and d < c and d > e)) or (a > b and a < c and b > d))
+
+plotshape(_hl, text="HL", title="Higher Low", style=shape.labelup, color=color.lime, textcolor=color.black, location=location.belowbar, offset = -rb)
+plotshape(_hh, text="HH", title="Higher High", style=shape.labeldown, color=color.lime, textcolor=color.black, location=location.abovebar, offset = -rb)
+plotshape(_ll, text="LL", title="Lower Low", style=shape.labelup, color=color.red, textcolor=color.white, location=location.belowbar, offset = -rb)
+plotshape(_lh, text="LH", title="Lower High", style=shape.labeldown, color=color.red, textcolor=color.white, location=location.abovebar, offset = -rb)
+
+float res = na, float sup = na
+res := _lh ? zz : res[1]
+sup := _hl ? zz : sup[1]
+
+
+int trend = na
+trend := close > res ? 1 : close < sup ? -1 : na(trend[1]) ? 0 : trend[1]
+
+res := ((trend == 1 and _hh) or (trend == -1 and _lh)) ? zz : res
+sup := ((trend == 1 and _hl) or (trend == -1 and _ll)) ? zz : sup
+
+rechange = res != res[1]
+suchange = sup != sup[1]
+
+var line resline = na
+var line supline = na
+if showsupres
+    if rechange
+        line.set_xy1(resline, bar_index - rb, res)
+        line.set_xy2(resline, bar_index, res)
+        resline := line.new(bar_index - rb, res, bar_index, res, color=rescol, width=srlinewidth, style=line.style_dotted)
+    if suchange
+        line.set_xy1(supline, bar_index - rb, sup)
+        line.set_xy2(supline, bar_index, sup)
+        supline := line.new(bar_index - rb, sup, bar_index, sup, color=supcol, width=srlinewidth, style=line.style_dotted)
+
+if changebarcol
+    var color barColor = na
+
+// Conditions fore bar colors
+    barColor := trend == 1 ? bcolup : trend == -1 ? bcoldn : na

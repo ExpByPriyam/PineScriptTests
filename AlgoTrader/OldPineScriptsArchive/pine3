@@ -1,0 +1,48 @@
+//@version=5
+strategy("Swing High Low SL with 1:1 RR Strategy", overlay=true)
+
+// Define parameters
+longPeriod = input(26, title="Long Moving Average")
+shortPeriod = input(12, title="Short Moving Average")
+atrPeriod = input(14, title="ATR Period for SL")
+atrMultiplier = input(1.0, title="ATR Multiplier for SL")
+riskRewardRatio = 1.0
+
+// Calculate moving averages
+longMa = ta.sma(close, longPeriod)
+shortMa = ta.sma(close, shortPeriod)
+
+// Define buy condition
+buyCondition = ta.crossover(shortMa, longMa)
+
+// Calculate swing lows for initial stop loss placement
+ph = ta.pivothigh(5, 2)
+pl = ta.pivotlow(5, 2)
+
+// Calculate ATR for stop loss adjustment
+currentAtr = ta.atr(atrPeriod) * atrMultiplier
+
+var float stopLossLevel = na
+
+if (buyCondition)
+    strategy.entry("Long", strategy.long)
+    // Determine initial stop loss level based on swing low or ATR
+    swingLowSL = na(pl[2]) ? low - currentAtr : pl[2]
+    stopLossLevel := math.max(low - currentAtr, swingLowSL)
+    strategy.exit("Initial SL", "Long", stop=stopLossLevel)
+
+if (strategy.position_size > 0)
+    // Calculate profit target based on entry price and risk-reward ratio
+    entryPrice = strategy.position_avg_price
+    profitTarget = entryPrice + (entryPrice - stopLossLevel) * riskRewardRatio
+    
+    // Update the stop loss if the current price is higher than the profit target
+    if (close > profitTarget)
+        stopLossLevel := entryPrice // Move stop loss to entry price to ensure a 1:1 RR
+        strategy.exit("Move SL to Breakeven", "Long", stop=stopLossLevel)
+    // Adjust stop loss further if conditions are met (you can add your conditions here)
+
+// Plotting for visualization
+plot(longMa, color=color.red)
+plot(shortMa, color=color.blue)
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")

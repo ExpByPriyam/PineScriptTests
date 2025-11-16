@@ -1,0 +1,174 @@
+//@version=5
+strategy(title="UT+BB+HL Strategy", overlay=true)
+
+var float lastPriceHH = na  // Variable to store the last price of HH 
+var float lastPriceLL = na  // Variable to store the last price of HH 
+
+lb = input.int(5, title='Left Bars', minval=1)
+rb = input.int(5, title='Right Bars', minval=1)
+
+
+ph = ta.pivothigh(lb, rb)
+pl = ta.pivotlow(lb, rb)
+
+iff_1 = pl ? -1 : na  // Trend direction
+hl = ph ? 1 : iff_1
+iff_2 = pl ? pl : na  // similar to zigzag but may have multiple highs/lows
+zz = ph ? ph : iff_2
+valuewhen_1 = ta.valuewhen(hl, hl, 1)
+valuewhen_2 = ta.valuewhen(zz, zz, 1)
+zz := pl and hl == -1 and valuewhen_1 == -1 and pl > valuewhen_2 ? na : zz
+valuewhen_3 = ta.valuewhen(hl, hl, 1)
+valuewhen_4 = ta.valuewhen(zz, zz, 1)
+zz := ph and hl == 1 and valuewhen_3 == 1 and ph < valuewhen_4 ? na : zz
+
+valuewhen_5 = ta.valuewhen(hl, hl, 1)
+valuewhen_6 = ta.valuewhen(zz, zz, 1)
+hl := hl == -1 and valuewhen_5 == 1 and zz > valuewhen_6 ? na : hl
+valuewhen_7 = ta.valuewhen(hl, hl, 1)
+valuewhen_8 = ta.valuewhen(zz, zz, 1)
+hl := hl == 1 and valuewhen_7 == -1 and zz < valuewhen_8 ? na : hl
+zz := na(hl) ? na : zz
+
+findprevious() =>  // finds previous three points (b, c, d, e)
+    ehl = hl == 1 ? -1 : 1
+    loc1 = 0.0
+    loc2 = 0.0
+    loc3 = 0.0
+    loc4 = 0.0
+    xx = 0
+    for x = 1 to 1000 by 1
+        if hl[x] == ehl and not na(zz[x])
+            loc1 := zz[x]
+            xx := x + 1
+            break
+    ehl := hl
+    for x = xx to 1000 by 1
+        if hl[x] == ehl and not na(zz[x])
+            loc2 := zz[x]
+            xx := x + 1
+            break
+    ehl := hl == 1 ? -1 : 1
+    for x = xx to 1000 by 1
+        if hl[x] == ehl and not na(zz[x])
+            loc3 := zz[x]
+            xx := x + 1
+            break
+    ehl := hl
+    for x = xx to 1000 by 1
+        if hl[x] == ehl and not na(zz[x])
+            loc4 := zz[x]
+            break
+    [loc1, loc2, loc3, loc4]
+
+float a = na
+float b = na
+float c = na
+float d = na
+float e = na
+if not na(hl)
+    [loc1, loc2, loc3, loc4] = findprevious()
+    a := zz
+    b := loc1
+    c := loc2
+    d := loc3
+    e := loc4
+    e
+
+_hh = zz and a > b and a > c and c > b and c > d
+_ll = zz and a < b and a < c and c < b and c < d
+
+if _hh
+    // Update lastPrice with the price at HH
+    lastPriceHH := zz
+    label.new(bar_index, zz, text=str.tostring(zz), color=color.lime, textcolor=color.black, size=size.normal)
+    
+
+if _ll
+    // Update lastPrice with the price at LL
+    lastPriceLL := zz
+    label.new(bar_index, zz, text=str.tostring(zz), color=color.red, textcolor=color.white, size=size.normal)
+
+
+//plotshape(_hh, text='HH', title='Higher High', style=shape.labeldown, color=color.new(color.lime, 0), textcolor=color.new(color.black, 0), location=location.abovebar, offset=-rb)
+//plotshape(_ll, text='LL', title='Lower Low', style=shape.labelup, color=color.new(color.red, 0), textcolor=color.new(color.white, 0), location=location.belowbar, offset=-rb)
+
+
+
+// UT + Inputs
+a_1 = input.int(1, title="Key Value. 'This changes the sensitivity'")
+c_1 = input.int(10, title="ATR Period")
+length = input.int(30, title="Length", minval=1)
+stdDev = input.float(3.0, title="StdDev", minval=0.01, step=0.01)
+
+
+
+xATR = ta.atr(c_1)
+nLoss = a_1 * xATR
+
+
+src = close
+
+var float xATRTrailingStop = 0.0
+xATRTrailingStop := if src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0)
+    math.max(nz(xATRTrailingStop[1]), src - nLoss)
+else if src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0)
+    math.min(nz(xATRTrailingStop[1]), src + nLoss)
+else
+    if src > nz(xATRTrailingStop[1], 0) 
+        src - nLoss 
+    else 
+        src + nLoss
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossunder(ema, xATRTrailingStop)
+
+// Calculate Bollinger Bands
+[sma, upper, lower] = ta.bb(close, length, stdDev)
+
+// Condition to check if the bar's close is below the middle band (SMA)
+belowMiddleBand = close < sma
+aboveMiddleBand = close > sma
+belowUpperBand = close < upper
+aboveLowerBand = close > lower
+belowLL = close < lastPriceLL
+aboveHH = open > lastPriceHH
+
+//buy  = src > xATRTrailingStop and above  and belowMiddleBand and aboveLowerBand and belowLL
+//sell = src < xATRTrailingStop and below and aboveMiddleBand and belowUpperBand and aboveHH
+buy  = src > xATRTrailingStop and above and aboveMiddleBand and belowUpperBand and aboveHH and strategy.position_size == 0
+sell = src < xATRTrailingStop and below and belowMiddleBand and aboveLowerBand and belowLL and strategy.position_size == 0
+
+buyCondition = buy 
+sellCondition = sell 
+
+// Strategy execution
+if (buyCondition)
+    //strategy.entry("Buy", strategy.long)
+    entryPrice = close
+    stopLossPrice = lastPriceLL // Example: setting stop loss $1 below entry price.
+    // Calculate take profit price for a 1:1 RR ratio.
+    takeProfitPrice = entryPrice + (entryPrice - stopLossPrice)
+    strategy.entry("Buy Long", strategy.long)
+    strategy.exit("Exit Long", "Buy Long", stop=stopLossPrice, limit=takeProfitPrice)
+
+//if (sellCondition)
+    //entryPrice = close
+    //stopLossPrice = lastPriceLL // Example: setting stop loss $1 below entry price.
+    // Calculate take profit price for a 1:1 RR ratio.
+    //takeProfitPrice = entryPrice + (entryPrice - stopLossPrice)
+    //strategy.entry("Buy Long", strategy.long)
+    //strategy.exit("Exit Long", "Buy Long", stop=stopLossPrice, limit=takeProfitPrice)
+
+// Optional: Plotting to visualize the entry and exit points
+plotshape(series=buy, title="Buy Signal", location=location.belowbar, color=color.green, size=size.small, style=shape.triangleup)
+plotshape(series=sell, title="Sell Signal", location=location.abovebar, color=color.red, size=size.small, style=shape.triangledown)
+
+// Plotting the Bollinger Bands for visualization
+plot(sma, color=color.blue, title="Middle Band")
+plot(upper, color=color.red, title="Upper Band")
+plot(lower, color=color.green, title="Lower Band")
+
+// Highlight bars that are below the middle band
+//bgcolor(belowMiddleBand ? color.new(color.red, 90) : na)

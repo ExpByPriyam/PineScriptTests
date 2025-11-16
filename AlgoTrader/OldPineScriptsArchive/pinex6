@@ -1,0 +1,112 @@
+//@version=5
+strategy(title="UT Bot Alerts Strategy", overlay=true)
+
+// Inputs
+a = input.int(1, title="Key Value. 'This changes the sensitivity'")
+c = input.int(10, title="ATR Period")
+length = input.int(30, title="Length", minval=1)
+stdDev = input.float(3.0, title="StdDev", minval=0.01, step=0.01)
+
+xATR = ta.atr(c)
+nLoss = a * xATR
+
+
+src = close
+
+lb = input.int(5, title="Left Bars", minval=1)
+rb = input.int(5, title="Right Bars", minval=1)
+
+ph = ta.pivothigh(lb, rb)
+pl = ta.pivotlow(lb, rb)
+
+// Declare variables at the top of your script
+var float a_1 = na
+var float b_1 = na
+var float c_1 = na
+var float d_1 = na
+var float e_1 = na
+
+hl = ph ? 1 : pl ? -1 : na
+zz = ph ? ph : pl ? pl : na
+zz := pl and hl == -1 and ta.valuewhen(hl, hl, 1) == -1 and pl > ta.valuewhen(zz, zz, 1) ? na : zz
+zz := ph and hl == 1 and ta.valuewhen(hl, hl, 1) == 1 and ph < ta.valuewhen(zz, zz, 1) ? na : zz
+
+hl := hl == -1 and ta.valuewhen(hl, hl, 1) == 1 and zz > ta.valuewhen(zz, zz, 1) ? na : hl
+hl := hl == 1 and ta.valuewhen(hl, hl, 1) == -1 and zz < ta.valuewhen(zz, zz, 1) ? na : hl
+zz := na(hl) ? na : zz
+
+// Correcting the usage of valuewhen with the ta. prefix
+if not na(hl)
+    a_1 := zz
+    b_1 := ta.valuewhen(zz, zz, 1)
+    c_1 := ta.valuewhen(zz, zz, 2)
+    d_1 := ta.valuewhen(zz, zz, 3)
+    e_1 := ta.valuewhen(zz, zz, 4)
+
+_hh = zz and (a_1 > b_1 and a_1 > c_1 and c_1 > b_1 and c_1 > d_1)
+_ll = zz and (a_1 < b_1 and a_1 < c_1 and c_1 < b_1 and c_1 < d_1)
+
+var float xATRTrailingStop = 0.0
+xATRTrailingStop := if src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0)
+    math.max(nz(xATRTrailingStop[1]), src - nLoss)
+else if src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0)
+    math.min(nz(xATRTrailingStop[1]), src + nLoss)
+else
+    if src > nz(xATRTrailingStop[1], 0) 
+        src - nLoss 
+    else 
+        src + nLoss
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossunder(ema, xATRTrailingStop)
+
+// Calculate Bollinger Bands
+[sma, upper, lower] = ta.bb(close, length, stdDev)
+
+// Condition to check if the bar's close is below the middle band (SMA)
+belowMiddleBand = close < sma
+aboveMiddleBand = close > sma
+
+// Declare a variable to hold the price at the last lower low
+var float lastLLPrice = na
+
+// Update lastLLPrice when a new lower low is detected
+if (_ll)
+    lastLLPrice := zz
+
+// Declare a variable to hold the price at the last higher high
+var float lastHHPrice = na
+
+// Update lastHHPrice when a new higher high is detected
+if (_hh)
+    lastHHPrice := zz
+
+buy  = src > xATRTrailingStop and above  and belowMiddleBand and (na(lastLLPrice) or close < lastLLPrice)
+sell = src < xATRTrailingStop and below and aboveMiddleBand and (na(lastHHPrice) or close > lastHHPrice)
+
+buyCondition = buy 
+sellCondition = sell 
+
+// Strategy execution
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.close("Buy")
+
+// Optional: Plotting to visualize the entry and exit points
+plotshape(series=buy, title="Buy Signal", location=location.belowbar, color=color.green, size=size.small, style=shape.triangleup)
+plotshape(series=sell, title="Sell Signal", location=location.abovebar, color=color.red, size=size.small, style=shape.triangledown)
+
+// Plotting the Bollinger Bands for visualization
+plot(sma, color=color.blue, title="Middle Band")
+plot(upper, color=color.red, title="Upper Band")
+plot(lower, color=color.green, title="Lower Band")
+
+plotshape(_hh, text="HH", title="Higher High", style=shape.labeldown, color=color.lime, textcolor=color.black, location=location.abovebar, offset = -rb)
+plotshape(_ll, text="LL", title="Lower Low", style=shape.labelup, color=color.red, textcolor=color.white, location=location.belowbar, offset = -rb)
+
+// Highlight bars that are below the middle band
+bgcolor(belowMiddleBand ? color.new(color.red, 90) : na)
+bgcolor(aboveMiddleBand ? color.new(color.green, 90) : na)

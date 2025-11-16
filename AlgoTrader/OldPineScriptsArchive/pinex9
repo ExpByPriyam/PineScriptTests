@@ -1,0 +1,91 @@
+//@version=5
+strategy(title="UT Bot Alerts Strategy", overlay=true)
+
+// Inputs
+a = input.int(1, title="Key Value. 'This changes the sensitivity'")
+c = input.int(10, title="ATR Period")
+length = input.int(30, title="Length", minval=1)
+stdDev = input.float(3.0, title="StdDev", minval=0.01, step=0.01)
+
+//for swings
+leftBars = input(5, title="Left Bars")
+rightBars = input(5, title="Right Bars")
+
+swingHigh = ta.pivothigh(high, leftBars, rightBars)
+
+
+
+// Track the last swing high for stop loss
+var float lastSwingHighPrice = na
+if (not na(swingHigh))
+    lastSwingHighPrice := swingHigh
+
+// Initialize a variable to store the ID of the stop loss line
+var line stopLossLine = na
+
+xATR = ta.atr(c)
+nLoss = a * xATR
+
+
+src = close
+
+var float xATRTrailingStop = 0.0
+xATRTrailingStop := if src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0)
+    math.max(nz(xATRTrailingStop[1]), src - nLoss)
+else if src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0)
+    math.min(nz(xATRTrailingStop[1]), src + nLoss)
+else
+    if src > nz(xATRTrailingStop[1], 0) 
+        src - nLoss 
+    else 
+        src + nLoss
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossunder(ema, xATRTrailingStop)
+
+// Calculate Bollinger Bands
+[sma, upper, lower] = ta.bb(close, length, stdDev)
+
+// Condition to check if the bar's close is below the middle band (SMA)
+belowMiddleBand = close < sma
+aboveMiddleBand = close > sma
+
+buy  = src > xATRTrailingStop and above  and belowMiddleBand
+sell = src < xATRTrailingStop and below and aboveMiddleBand
+
+buyCondition = buy 
+sellCondition = sell 
+
+// Strategy execution
+if (buyCondition and not na(lastSwingHighPrice))
+    // Calculate stop loss level based on last swing high
+    stopLossPrice = lastSwingHighPrice
+    entryPrice = close
+    // Calculate profit target for 1:1 risk-reward
+    profitTarget = entryPrice + (entryPrice - stopLossPrice)
+    
+    // Enter the trade
+    strategy.entry("Buy", strategy.long)
+    
+    // Set the stop loss and take profit
+    strategy.exit("Exit", "Buy", stop=stopLossPrice, limit=profitTarget)
+
+    // If a line exists, remove it before drawing a new one
+    if (not na(stopLossLine))
+        line.delete(stopLossLine)
+
+//if (sellCondition)
+    //strategy.close("Buy")
+
+// Optional: Plotting to visualize the entry and exit points
+plotshape(series=buy, title="Buy Signal", location=location.belowbar, color=color.green, size=size.small, style=shape.triangleup)
+plotshape(series=sell, title="Sell Signal", location=location.abovebar, color=color.red, size=size.small, style=shape.triangledown)
+
+// Plotting the Bollinger Bands for visualization
+plot(sma, color=color.blue, title="Middle Band")
+plot(upper, color=color.red, title="Upper Band")
+plot(lower, color=color.green, title="Lower Band")
+
+// Highlight bars that are below the middle band
+bgcolor(belowMiddleBand ? color.new(color.red, 90) : na)

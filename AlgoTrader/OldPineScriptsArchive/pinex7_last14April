@@ -1,0 +1,74 @@
+//@version=5
+strategy("Higher High Lower Low Strategy", overlay=true, max_lines_count=500)
+
+// Inputs
+lb = input.int(5, title="Left Bars", minval=1)
+rb = input.int(5, title="Right Bars", minval=1)
+
+// Calculation for pivot highs and lows
+ph = ta.pivothigh(lb, rb)
+pl = ta.pivotlow(lb, rb)
+
+// Declare variables at the top of your script for HH and LL logic
+var float a_1 = na
+var float b_1 = na
+var float c_1 = na
+var float d_1 = na
+var float e_1 = na
+var float last_ll_price = na  // Last LL price for buy signal condition
+var float last_hh_price = na  // Last HH price for sell signal condition
+var int last_ll_update_bar = na  // Bar of the last LL update
+var int last_hh_update_bar = na  // Bar of the last HH update
+var sell_on_hh_break = false  // Ensures selling occurs only once after HH break
+var sell_on_ll_break = false  // Ensures selling occurs only once after LL break
+var labelcheck = false  // Ensures selling occurs only once after LL break
+
+hl = ph ? 1 : pl ? -1 : na
+zz = ph ? ph : pl ? pl : na
+zz := pl and hl == -1 and ta.valuewhen(hl, hl, 1) == -1 and pl > ta.valuewhen(zz, zz, 1) ? na : zz
+zz := ph and hl == 1 and ta.valuewhen(hl, hl, 1) == 1 and ph < ta.valuewhen(zz, zz, 1) ? na : zz
+
+hl := hl == -1 and ta.valuewhen(hl, hl, 1) == 1 and zz > ta.valuewhen(zz, zz, 1) ? na : hl
+hl := hl == 1 and ta.valuewhen(hl, hl, 1) == -1 and zz < ta.valuewhen(zz, zz, 1) ? na : hl
+zz := na(hl) ? na : zz
+
+// Update values based on HL
+if not na(hl)
+    a_1 := zz
+    b_1 := ta.valuewhen(zz, zz, 1)
+    c_1 := ta.valuewhen(zz, zz, 2)
+    d_1 := ta.valuewhen(zz, zz, 3)
+    e_1 := ta.valuewhen(zz, zz, 4)
+
+// Conditions for identifying HH and LL with your logic
+_hh = zz and (a_1 > b_1 and a_1 > c_1 and c_1 > b_1 and c_1 > d_1)
+_ll = zz and (a_1 < b_1 and a_1 < c_1 and c_1 < b_1 and c_1 < d_1)
+
+// Update last HH and LL prices and reset sell flags when a new HH or LL is detected
+if _hh
+    last_hh_price := a_1
+    last_hh_update_bar := bar_index
+    sell_on_hh_break := true  // Allow sell after HH break
+
+if _ll
+    last_ll_price := a_1
+    last_ll_update_bar := bar_index
+    sell_on_ll_break := true  // Allow sell after LL break
+    labelcheck := true
+
+
+
+// Implement selling logic based on breaking the last HH or LL
+if sell_on_hh_break and close > last_hh_price 
+   // strategy.entry("Sell_HH_Break", strategy.short)
+    label.new(bar_index, low, "Buy", color=color.green)
+    //sell_on_hh_break := false  // Prevent further sells until a new HH is detected
+
+if sell_on_ll_break and close < last_ll_price 
+    //strategy.entry("Sell_LL_Break", strategy.short)
+    label.new(bar_index, low, "Sell", color=color.red)
+    //sell_on_ll_break := false  // Prevent further sells until a new LL is detected
+
+// Visualizing HH and LL
+plotshape(series=_hh, text="HH", title="Higher High", style=shape.labeldown, color=color.lime, textcolor=color.black, location=location.abovebar, offset = -rb)
+plotshape(series=_ll, text="LL", title="Lower Low", style=shape.labelup, color=color.red, textcolor=color.white, location=location.belowbar, offset = -rb)

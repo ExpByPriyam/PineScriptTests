@@ -1,0 +1,25 @@
+//@version=5
+strategy("My Strategy with SL and TP", overlay=true)
+
+// Entry condition: Close crosses above the 20-period MA
+longCondition = ta.crossover(close, ta.sma(close, 20))
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Assuming a 2% stop loss and a 4% take profit
+stopLossPct = -2.0
+takeProfitPct = 4.0
+
+// Calculating the stop loss and take profit prices
+stopLossPrice = strategy.position_avg_price * (1 + stopLossPct / 100)
+takeProfitPrice = strategy.position_avg_price * (1 + takeProfitPct / 100)
+
+// Setting the stop loss and take profit
+strategy.exit("Exit", "Long", stop=stopLossPrice, limit=takeProfitPrice)
+
+// Visualizing the stop loss and take profit levels with short dotted lines
+//plotshape(series=longCondition, style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), size=size.small, text="Buy")
+p1 = plot(series=stopLossPrice, color=color.new(color.red, 0), linewidth=1, style=plot.style_circles, title="Stop Loss")
+p2 = plot(series=takeProfitPrice, color=color.new(color.blue, 0), linewidth=1, style=plot.style_circles, title="Take Profit")
+fill(p1, p2, color=color.new(color.silver, 90), title="SL to TP Range")
+

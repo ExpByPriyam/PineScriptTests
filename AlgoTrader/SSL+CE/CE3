@@ -1,0 +1,58 @@
+//@version=5
+
+strategy('Chandelier Exit', shorttitle='CE', overlay=true)
+
+var string calcGroup = 'Calculation'
+length = input.int(title='ATR Period', defval=22, group=calcGroup)
+mult = input.float(title='ATR Multiplier', step=0.1, defval=3.0, group=calcGroup)
+useClose = input.bool(title='Use Close Price for Extremums', defval=true, group=calcGroup)
+
+var string visualGroup = 'Visuals'
+showLabels = input.bool(title='Show Buy/Sell Labels', defval=true, group=visualGroup)
+highlightState = input.bool(title='Highlight State', defval=true, group=visualGroup)
+
+var string alertGroup = 'Alerts'
+awaitBarConfirmation = input.bool(title="Await Bar Confirmation", defval=true, group=alertGroup)
+
+atr = mult * ta.atr(length)
+
+longStop = (useClose ? ta.highest(close, length) : ta.highest(length)) - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+
+shortStop = (useClose ? ta.lowest(close, length) : ta.lowest(length)) + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+
+var int dir = 1
+dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+
+var color longColor = color.green
+var color shortColor = color.red
+var color textColor = color.new(color.white, 0)
+
+buySignal = dir == 1 and dir[1] == -1
+plotshape(buySignal and showLabels ? longStop : na, title='Buy Label', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=textColor)
+
+sellSignal = dir == -1 and dir[1] == 1
+plotshape(sellSignal and showLabels ? shortStop : na, title='Sell Label', text='Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=textColor)
+
+buyCondition = buySignal and and strategy.position_size == 0
+// Strategy execution
+if (buySignal)
+    //strategy.entry("Buy", strategy.long)
+    entryPrice = close
+    //stopLossPrice = lastPriceLL // Example: setting stop loss $1 below entry price.
+    // Calculate take profit price for a 1:1 RR ratio.
+    //takeProfitPrice = entryPrice + (entryPrice - stopLossPrice)
+    strategy.entry("Buy Long", strategy.long)
+    //strategy.exit("Exit Long", "Buy Long", stop=stopLossPrice, limit=takeProfitPrice)
+
+if (sellSignal)
+    //entryPrice = close
+    //stopLossPrice = lastPriceLL // Example: setting stop loss $1 below entry price.
+    // Calculate take profit price for a 1:1 RR ratio.
+    //takeProfitPrice = entryPrice + (entryPrice - stopLossPrice)
+    //strategy.entry("Buy Long", strategy.long)
+    //strategy.exit("Exit Long", "Buy Long", stop=stopLossPrice, limit=takeProfitPrice) 
+    strategy.close("Buy Long")

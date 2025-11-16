@@ -1,0 +1,26 @@
+//@version=5
+strategy("My Strategy with SL and TP using Entry Price", overlay=true)
+
+// Entry condition: Close crosses above the 20-period MA
+longCondition = ta.crossover(close, ta.sma(close, 20))
+
+// Define variables to store entry price, stop loss, and take profit
+var float entryPrice = na
+var float stopLossPrice = na
+var float takeProfitPrice = na
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    entryPrice := close // Update entry price on new entry
+    // Assuming a 2% stop loss and a 4% take profit from the entry price
+    stopLossPrice := entryPrice * 0.98
+    takeProfitPrice := entryPrice * 1.04
+
+// Setting the stop loss and take profit using the updated prices
+strategy.exit("Exit", "Long", stop=stopLossPrice, limit=takeProfitPrice)
+
+// Visualizing the stop loss and take profit levels with short dotted lines
+plotshape(series=longCondition, style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), size=size.small, text="Buy")
+p1 = plot(series=stopLossPrice, color=color.new(color.red, 0), linewidth=1, style=plot.style_circles, title="Stop Loss")
+p2 = plot(series=takeProfitPrice, color=color.new(color.blue, 0), linewidth=1, style=plot.style_circles, title="Take Profit")
+fill(p1, p2, color=color.new(color.silver, 90), title="SL to TP Range")

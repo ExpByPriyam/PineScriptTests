@@ -1,0 +1,49 @@
+//@version=5
+strategy(title="UT Bot Alerts Strategy", overlay=true)
+
+// Inputs
+a = input.int(1, title="Key Value. 'This changes the sensitivity'")
+c = input.int(10, title="ATR Period")
+h = input.bool(false, title="Signals from Heikin Ashi Candles")
+
+xATR = ta.atr(c)
+nLoss = a * xATR
+
+// Function to get the source based on the user input
+getSrc() =>
+    if h
+        request.security(request.heikinashi(syminfo.tickerid), timeframe.period, close)
+    else
+        close
+
+src = getSrc()
+
+var float xATRTrailingStop = 0.0
+xATRTrailingStop := if src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0)
+    math.max(nz(xATRTrailingStop[1]), src - nLoss)
+else if src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0)
+    math.min(nz(xATRTrailingStop[1]), src + nLoss)
+else
+    if src > nz(xATRTrailingStop[1], 0) 
+        src - nLoss 
+    else 
+        src + nLoss
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossunder(ema, xATRTrailingStop)
+
+
+buy  = src > xATRTrailingStop and above 
+sell = src < xATRTrailingStop and below
+
+// Strategy execution
+if (buy)
+    strategy.entry("Buy", strategy.long)
+
+if (sell)
+    strategy.close("Buy")
+
+// Optional: Plotting to visualize the entry and exit points
+plotshape(series=buy, title="Buy Signal", location=location.belowbar, color=color.green, size=size.small, style=shape.triangleup)
+plotshape(series=sell, title="Sell Signal", location=location.abovebar, color=color.red, size=size.small, style=shape.triangledown)

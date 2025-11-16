@@ -1,0 +1,48 @@
+//@version=5
+strategy("Swing High Stop Loss and 1:1 R/R Strategy", overlay=true)
+
+// Define parameters
+leftBars = input(5, title="Left Bars")
+rightBars = input(5, title="Right Bars")
+smaPeriod = input(20, title="SMA Period")
+
+// Calculate moving averages
+fastSMA = ta.sma(close, smaPeriod)
+slowSMA = ta.sma(close, smaPeriod * 2)
+
+// Detect swing high
+swingHigh = ta.pivothigh(high, leftBars, rightBars)
+
+// Define buy condition
+buyCondition = ta.crossover(fastSMA, slowSMA)
+
+// Track the last swing high for stop loss
+var float lastSwingHighPrice = na
+if (not na(swingHigh))
+    lastSwingHighPrice := swingHigh
+
+// Initialize a variable to store the ID of the stop loss line
+var line stopLossLine = na
+
+// Entry logic
+if (buyCondition and not na(lastSwingHighPrice))
+    // Calculate stop loss level based on last swing high
+    stopLossPrice = lastSwingHighPrice
+    // Calculate entry price as the current close price
+    entryPrice = close
+    // Calculate profit target for 1:1 risk-reward
+    profitTarget = entryPrice + (entryPrice - stopLossPrice)
+    
+    // Enter the trade
+    strategy.entry("Buy", strategy.long)
+    
+    // Set the stop loss and take profit
+    strategy.exit("Exit", "Buy", stop=stopLossPrice, limit=profitTarget)
+
+    // If a line exists, remove it before drawing a new one
+    if (not na(stopLossLine))
+        line.delete(stopLossLine)
+    
+    // Draw a new stop loss line at the last swing high
+    stopLossLine := line.new(x1=bar_index, y1=stopLossPrice, x2=bar_index[1], y2=stopLossPrice, width=2, color=color.red, extend=extend.right)
+
